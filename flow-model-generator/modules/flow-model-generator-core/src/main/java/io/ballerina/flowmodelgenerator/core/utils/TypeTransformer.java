@@ -19,6 +19,8 @@
 package io.ballerina.flowmodelgenerator.core.utils;
 
 import io.ballerina.compiler.api.ModuleID;
+import io.ballerina.compiler.api.SemanticModel;
+import io.ballerina.compiler.api.Types;
 import io.ballerina.compiler.api.symbols.AbsResourcePathAttachPoint;
 import io.ballerina.compiler.api.symbols.ArrayTypeSymbol;
 import io.ballerina.compiler.api.symbols.ClassSymbol;
@@ -60,6 +62,7 @@ import io.ballerina.flowmodelgenerator.core.model.NodeKind;
 import io.ballerina.flowmodelgenerator.core.model.TypeData;
 import io.ballerina.modelgenerator.commons.CommonUtils;
 import io.ballerina.modelgenerator.commons.ModuleInfo;
+import io.ballerina.modelgenerator.commons.PackageUtil;
 import io.ballerina.projects.Document;
 import io.ballerina.projects.Module;
 
@@ -696,25 +699,24 @@ public class TypeTransformer {
 
     private Object handleAsFirstClassNonIntersectionType(IntersectionTypeSymbol intersectionTypeSymbol,
                                                          TypeData.TypeDataBuilder typeDataBuilder) {
+        SemanticModel semanticModel = PackageUtil.getCompilation(module.packageInstance())
+                .getSemanticModel(module.moduleId());
+
+        Types types = semanticModel.types();
+
         TypeSymbol nonReadonlyTypeSymbol = null;
         List<TypeSymbol> intersectionMemberTypes = intersectionTypeSymbol.memberTypeDescriptors();
 
         // Check for non-readonly type members to treat the type as a first-class non-intersection type
         for (TypeSymbol typeSymbol : intersectionMemberTypes) {
-            if (typeSymbol.typeKind() == TypeDescKind.READONLY) {
+            if (typeSymbol.subtypeOf(types.READONLY)) {
                 continue;
-            }
-
-            if (typeSymbol.typeKind() == TypeDescKind.INTERSECTION) {
-                // If a member type is an intersection type, we don't handle it as a first-class non-intersection type
-                return transform(intersectionTypeSymbol, typeDataBuilder);
             }
 
             if (nonReadonlyTypeSymbol == null) {
                 nonReadonlyTypeSymbol = typeSymbol;
             } else {
-                // If there are multiple non-readonly types,
-                // we handle the intersection type as a first-class intersection type
+                // If there are multiple non-readonly types, we cannot handle it as a first-class non-intersection type
                 return transform(intersectionTypeSymbol, typeDataBuilder);
             }
         }
